@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="prefetch" href="outbound.html">
+    <title>Internal Palangka Raya DC</title>
+    <meta name="robots" content="noindex, nofollow, noarchive">
+    <style>
+      /* Bikin transisi antar halaman (rest-time.html <-> outbound.html) jadi fade halus,
+         bukan flash putih pas loading. Didukung Chrome/Edge terbaru. */
+      @view-transition {
+        navigation: auto;
+      }
+    </style>
+    
+    <!-- MEMANGGIL FONT MODERN -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⏳</text></svg>">
+    
+    <!-- LIBRARY SHEETJS UNTUK MEMBACA FILE EXCEL (.XLSX / .XLS) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <!-- FIREBASE SDK UNTUK SINKRONISASI MULTI-DEVICE (REALTIME) -->
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+    <style>
+        /* CSS VARIABLE UNTUK LIGHT & DARK MODE (konten utama saja) */
+        :root[data-theme="light"] {
+            --bg-body: #f8fafc;
+            --bg-card: #ffffff;
+            --border-color: #cbd5e1;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --text-label: #475569;
+            --table-header-bg: #f1f5f9;
+            --input-bg: #ffffff;
+            --row-hover: #f8fafc;
+        }
+        
+        :root[data-theme="dark"] {
+            --bg-body: #0f172a;
+            --bg-card: #1e293b;
+            --border-color: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --text-label: #cbd5e1;
+            --table-header-bg: #334155;
+            --input-bg: #0f172a;
+            --row-hover: #1e293b;
+        }
+        /* Sidebar SELALU dark navy, gak ikut toggle light/dark konten - biar senada sama Outbound */
+        :root {
+            --bg-sidebar: #0b1329;
+            --border-sidebar: #1e293b;
+            --text-sidebar: #f1f5f9;
+            --text-sidebar-muted: #94a3b8;
+            --bg-sidebar-card: #060a17;
+            --btn-sidebar: #1e293b;
+            --btn-sidebar-text: #f1f5f9;
+            --btn-sidebar-border: #334155;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        html, body { height: 100%; font-family: 'Inter', sans-serif; background-color: var(--bg-body); color: var(--text-main); transition: background-color 0.3s, color 0.3s; overflow: hidden; }
+        
+        .wrapper { display: flex; height: 100vh; width: 100vw; }
+        .sidebar {
+            position: fixed;
+            top: 0; left: 0;
+            height: 100%;
+            width: 320px;
+            background-color: var(--bg-sidebar);
+            border-right: 1px solid var(--border-sidebar);
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateX(-100%);
+            flex-shrink: 0;
+            z-index: 200;
+            box-shadow: 0 0 30px rgba(0,0,0,0.35);
+        }
+        .sidebar.open { transform: translateX(0); }
+        .sidebar-backdrop {
+            position: fixed; inset: 0; background: rgba(2,6,23,0.6);
+            backdrop-filter: blur(2px); z-index: 150; display: none;
+        }
+        .sidebar-backdrop.open { display: block; }
+        .sidebar-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 14px 16px; background: var(--bg-sidebar-card);
+            border-bottom: 1px solid var(--border-sidebar); flex-shrink: 0;
+        }
+        .sidebar-header span { color: #f1f5f9; font-weight: 700; font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
+        .sidebar-header button { background: transparent; border: none; color: #94a3b8; font-size: 16px; cursor: pointer; box-shadow: none; padding: 4px 8px; }
+        .sidebar-header button:hover { color: #fff; }
+        .hamburger-btn {
+            position: fixed; top: 16px; left: 16px; z-index: 120;
+            width: 40px; height: 40px; border-radius: 8px;
+            background: var(--bg-sidebar); color: #f1f5f9; border: 1px solid var(--border-sidebar);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 16px; cursor: pointer; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .hamburger-btn:hover { background: #1e293b; }
+        .sidebar-top { padding: 20px 15px; overflow-y: auto; flex-grow: 1; display: flex; flex-direction: column; gap: 15px; }
+        .sidebar-footer { border-top: 1px solid var(--border-sidebar); padding: 15px; display: flex; flex-direction: column; gap: 8px; }
+        
+        .theme-toggle-btn {
+            display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+            padding: 10px; border: 1px solid var(--btn-sidebar-border); background: var(--btn-sidebar);
+            color: var(--btn-sidebar-text); border-radius: 6px; cursor: pointer; font-weight: 600; font-size: 13px;
+        }
+        .main-content { flex-grow: 1; display: flex; flex-direction: column; padding: 20px 20px 20px 70px; overflow-y: auto; min-width: 0; }
+        h1 { font-family: 'Poppins', sans-serif; font-size: 24px; color: #e67e22; text-align: center; margin: 0; font-weight: 700; letter-spacing: 0.5px; }
+        h2 { font-size: 13px; text-align: center; margin: 3px 0 10px 0; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+        
+        .input-panel { 
+            flex-shrink: 0; 
+            background: var(--bg-card); 
+            border: 1px solid var(--border-color); 
+            padding: 15px 20px; 
+            margin-bottom: 15px; 
+            border-radius: 10px; 
+            box-shadow: 0 2px 8px rgba(0,0,0,0.02);
+        }
+        .input-panel h3 { margin-top: 0; margin-bottom: 12px; color: var(--text-main); font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; }
+        .form-row { display: flex; gap: 20px; align-items: flex-end; flex-wrap: wrap; }
+        .form-group { display: flex; flex-direction: column; gap: 6px; }
+        label { font-weight: 600; color: var(--text-label); font-size: 12px; }
+        
+        input, select { 
+            padding: 8px 12px; font-family: 'Inter', sans-serif; font-size: 13px; border: 1px solid var(--border-color); border-radius: 6px; 
+            background-color: var(--input-bg); color: var(--text-main); transition: all 0.2s ease;
+        }
+        input:focus, select:focus { outline: none; border-color: #e67e22; box-shadow: 0 0 0 3px rgba(230, 126, 34, 0.15); }
+        input:read-only { background-color: rgba(148, 163, 184, 0.1); color: var(--text-muted); cursor: not-allowed; }
+        
+        button { 
+            padding: 9px 16px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 600; 
+            border-radius: 6px; border: none; cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .btn-primary { background-color: #e67e22; color: white; }
+        .btn-primary:hover { background-color: #d35400; transform: translateY(-1px); }
+        .btn-danger { background-color: #ef4444; color: white; }
+        .btn-danger:hover { background-color: #dc2626; transform: translateY(-1px); }
+        .btn-success { background-color: #10b981; color: white; }
+        .btn-success:hover { background-color: #059669; transform: translateY(-1px); }
+        .btn-warning { background-color: #f59e0b; color: white; }
+        .btn-warning:hover { background-color: #d97706; transform: translateY(-1px); }
+        .btn-action-del { background-color: #fee2e2; color: #ef4444; padding: 4px 8px; font-size: 11px; font-weight: 600; border-radius: 4px; }
+        .btn-action-del:hover { background-color: #ef4444; color: white; }
+        
+        .main-layout { display: flex; flex-direction: column; gap: 15px; flex-grow: 1; min-height: 0; }
+        .grid-header { flex-shrink: 0; display: flex; justify-content: space-between; gap: 20px; align-items: flex-start; }
+        
+        .summary-box { border: 1px solid var(--border-sidebar); border-radius: 8px; padding: 15px; background: var(--bg-sidebar-card); width: 100%; }
+        .summary-box table { width: 100%; border-collapse: collapse; }
+        .summary-box td { padding: 6px 0; color: var(--text-sidebar-muted); font-weight: 500; font-size: 13px; }
+        .summary-box td:last-child { font-weight: 700; color: var(--text-sidebar); text-align: right; font-size: 14px; }
+        
+        .quick-metric-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; padding: 8px 10px; border-radius: 6px; }
+        .metric-disiplin { background-color: #132d1f; border-left: 4px solid #137333; }
+        .metric-gancang { background-color: #3a1515; border-left: 4px solid #c5221f; }
+        .metric-dept { background-color: #1e293b; border-left: 4px solid #475569; }
+        .title-section { flex-grow: 1; text-align: center; }
+        
+        .center-box-wrapper { display: flex; justify-content: center; gap: 15px; margin-top: 12px; flex-wrap: wrap; }
+        .center-box { 
+            text-align: center; border: 1px solid var(--border-color); border-radius: 8px; width: 140px; padding: 8px; 
+            background: var(--bg-card); display: flex; flex-direction: column; justify-content: space-between;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.02);
+        }
+        .center-box .box-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; padding-bottom: 4px; }
+        .actual-rest { border-radius: 6px; font-size: 12px; font-weight: 500; margin-top: 4px; padding: 8px; flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
+        .counter-num { font-size: 24px; font-weight: 700; margin-top: 2px; }
+        
+        .filter-section { border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; background: var(--bg-card); display: flex; flex-direction: column; gap: 10px; width: 260px; flex-shrink: 0; }
+        .filter-section label { color: var(--text-main); font-weight: 600; font-size: 12px; }
+        
+        .table-container { 
+            flex-grow: 1; overflow-y: auto; min-height: 0; border: 1px solid var(--border-color); border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); background: var(--bg-card);
+        }
+        .data-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .data-table th, .data-table td { padding: 9px 12px; text-align: center; word-wrap: break-word; border-bottom: 1px solid var(--border-color); font-size: 13px; }
+        
+        .data-table th { 
+            background-color: var(--table-header-bg); color: var(--text-main); font-weight: 700; font-size: 12px; 
+            text-transform: uppercase; letter-spacing: 0.5px; position: sticky; top: 0; z-index: 10; box-shadow: inset 0 -2px 0 var(--border-color); 
+        }
+        .data-table tr:hover { background-color: var(--row-hover); }
+        
+        .badge { display: inline-block; padding: 5px 10px; border-radius: 100px; font-size: 11px; font-weight: 700; text-align: center; }
+        .badge-dept { background-color: var(--table-header-bg); color: var(--text-main); border: 1px solid var(--border-color); }
+        .badge-time { font-family: monospace; font-size: 13px; font-weight: 700; color: var(--text-main); background: var(--table-header-bg); border: 1px solid var(--border-color); padding: 3px 6px; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
+        .badge-time:hover { background: #e67e22; color: #ffffff; border-color: #d35400; }
+        
+        .inline-time-input { width: 65px; padding: 2px 4px; font-size: 12px; font-family: monospace; font-weight: bold; text-align: center; border-color: #e67e22; border-radius: 4px; }
+        .alert-disiplin { background-color: #d1fae5; color: #047857; font-weight: 700; }
+        .alert-gancang { background-color: #fee2e2; color: #b91c1c; font-weight: 700; }
+        .alert-istirahat { background-color: #ffedd5; color: #c2410c; font-weight: 700; }
+        .alert-reminder { background-color: #fef9c3; color: #a16207; font-weight: 700; }
+        
+        .next-action-badge { font-weight: 700; padding: 8px 12px; border-radius: 6px; text-align: center; font-size: 13px; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05);}
+        .row-reminder { background-color: #fefce8 !important; }
+        .row-gancang { background-color: #fef2f2 !important; }
+        
+        [data-theme="dark"] .row-reminder { background-color: #423b12 !important; }
+        [data-theme="dark"] .row-gancang { background-color: #4c1d1d !important; }
+
+        /* ANIMASI KEDIP / PULSE HIGHLIGHT */
+        @keyframes pulseHighlight {
+            0% {
+                background-color: rgba(230, 126, 34, 0.6);
+                box-shadow: inset 0 0 12px rgba(230, 126, 34, 0.8);
+            }
+            50% {
+                background-color: rgba(230, 126, 34, 0.15);
+                box-shadow: inset 0 0 2px rgba(230, 126, 34, 0.3);
+            }
+            100% {
+                background-color: rgba(230, 126, 34, 0.6);
+                box-shadow: inset 0 0 12px rgba(230, 126, 34, 0.8);
+            }
+        }
+        .row-highlight {
+            animation: pulseHighlight 1s ease-in-out 3; /* Kedip 3 kali */
+        }
+
+        /* ==== FIREBASE SETUP MODAL & CONNECTION STATUS ==== */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.65);
+            display: flex; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .modal-box {
+            background: var(--bg-card); border-radius: 12px; padding: 24px 28px; width: 480px; max-width: 92vw;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.25); border: 1px solid var(--border-color);
+        }
+        .modal-box h3 { color: #e67e22; font-size: 17px; margin-bottom: 6px; }
+        .modal-box p { font-size: 12.5px; color: var(--text-muted); margin-bottom: 10px; line-height: 1.5; }
+        .modal-box textarea {
+            width: 100%; min-height: 130px; font-family: monospace; font-size: 12px; padding: 10px;
+            border: 1px solid var(--border-color); border-radius: 6px; background: var(--input-bg); color: var(--text-main); resize: vertical;
+        }
+        .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+        .modal-error { color: #ef4444; font-size: 12px; margin-top: 6px; min-height: 16px; font-weight: 600; }
+
+        .conn-status {
+            display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 700;
+            padding: 5px 10px; border-radius: 100px; width: fit-content; margin: 0 auto 8px auto;
+        }
+        .conn-dot { width: 8px; height: 8px; border-radius: 50%; }
+        .conn-online { background: #d1fae5; color: #047857; }
+        .conn-online .conn-dot { background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,0.25); }
+        .conn-offline { background: #fee2e2; color: #b91c1c; }
+        .conn-offline .conn-dot { background: #ef4444; }
+        .conn-connecting { background: #fef9c3; color: #a16207; }
+        .conn-connecting .conn-dot { background: #f59e0b; }
+    </style>
+</head>
+<body>
+<script src="auth-guard.js"></script>
+<div id="firebaseSetupModal" class="modal-overlay" style="display:none;">
+    <div class="modal-box">
+        <h3>🔗 Hubungkan ke Database Online</h3>
+        <p>Tempel <b>Firebase Config</b> (dari project Firebase lu) di bawah ini — boleh paste kode mentah persis dari Firebase Console (gak perlu diedit dulu). Cukup dilakukan <b>1x per device</b> — device lain yang pake config yang SAMA bakal otomatis sinkron realtime satu sama lain.</p>
+        <textarea id="firebaseConfigInput" placeholder='{
+  "apiKey": "...",
+  "authDomain": "...",
+  "databaseURL": "https://xxxx-default-rtdb.asia-southeast1.firebasedatabase.app",
+  "projectId": "...",
+  ...
+}'></textarea>
+        <div class="modal-error" id="firebaseConfigError"></div>
+        <div class="modal-actions">
+            <button class="btn-warning" onclick="closeFirebaseModal()" id="firebaseModalCancelBtn" style="display:none;">Batal</button>
+            <button class="btn-primary" onclick="saveFirebaseConfig()">💾 Simpan & Hubungkan</button>
+        </div>
+    </div>
+</div>
+<button class="hamburger-btn" onclick="toggleSidebar()" title="Buka Menu">☰</button>
+<div class="sidebar-backdrop" id="sidebarBackdrop" onclick="toggleSidebar()"></div>
+<div class="wrapper">
+    <nav class="sidebar" id="mainSidebar">
+        <div class="sidebar-header">
+            <span>⏳ Rest Time Monitoring</span>
+            <button onclick="toggleSidebar()">✕</button>
+        </div>
+        <div class="sidebar-top">
+            <div class="summary-box" id="crossPageNav" style="padding:8px;">
+                <div style="font-weight:800; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-sidebar-muted); margin-bottom:8px; padding:0 4px;">Productivity</div>
+                <a href="rest-time.html" style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:6px; background:#e67e22; color:#fff; font-weight:700; font-size:12px; text-decoration:none; margin-bottom:4px;">⏳ Rest Time Monitoring</a>
+                <a href="performance-bagger.html" id="navToPerformanceBagger" style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:6px; color:var(--text-sidebar); font-weight:600; font-size:12px; text-decoration:none; margin-bottom:4px;">🏆 Performance Bagger</a>
+                <div style="font-weight:800; font-size:10px; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-sidebar-muted); margin:10px 0 8px; padding:0 4px;">Outbound Monitoring</div>
+                <a href="outbound.html" id="navToOutboundAging" style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:6px; color:var(--text-sidebar); font-weight:600; font-size:12px; text-decoration:none; margin-bottom:4px;">📦 Aging & Packer Backlog</a>
+                <a href="outbound.html#occupancy" id="navToOutboundOccupancy" style="display:flex; align-items:center; gap:8px; padding:8px 10px; border-radius:6px; color:var(--text-sidebar); font-weight:600; font-size:12px; text-decoration:none;">🏭 Occupancy & Shift</a>
+            </div>
+            <div class="summary-box">
+                <div style="font-weight:700; font-size:12px; text-transform:uppercase; color:var(--text-sidebar); margin-bottom:8px;">📊 Manpower Terdata</div>
+                <table>
+                    <tr><td>Tanggal Monitor:</td><td><input type="date" id="filterTanggal" style="padding: 3px 6px; font-size:11px; width:120px; background:var(--input-bg); border:1px solid var(--border-color); color:var(--text-main);"></td></tr>
+                    <tr><td>Total MP SOC Operator:</td><td id="mpSOC">0</td></tr>
+                    <tr><td>Total MP EHA Operator:</td><td id="mpEHA">0</td></tr>
+                    <tr><td>Total MP Admin:</td><td id="mpAdmin">0</td></tr>
+                    <tr><td>Total PIC EHA / Non SOC:</td><td id="mpNonSOC">0</td></tr>
+                    <tr><td>Total Cache / MM Oper:</td><td id="mpCache">0</td></tr>
+                </table>
+            </div>
+            <div class="summary-box">
+                <div style="font-weight:700; font-size:12px; text-transform:uppercase; color:#e67e22; margin-bottom:10px;">🎯 Quick Panel Metrics</div>
+                <div class="quick-metric-row metric-disiplin">
+                    <span style="font-weight: 600; color: #34d399;">% Disiplin</span>
+                    <span id="pctDisiplin" style="font-weight: 700; font-size: 14px; color: #34d399;">0%</span>
+                </div>
+                <div class="quick-metric-row metric-gancang">
+                    <span style="font-weight: 600; color: #f87171;">% Gancang Meakal</span>
+                    <span id="pctGancang" style="font-weight: 700; font-size: 14px; color: #f87171;">0%</span>
+                </div>
+                <div class="quick-metric-row metric-dept" style="flex-direction: column; align-items: flex-start; gap: 2px;">
+                    <span style="font-weight: 600; font-size: 11px;">⚠️ Pelanggar Terbanyak (Dept)</span>
+                    <span id="highestViolatorDept" style="font-weight: 700; font-size: 13px; color: #e67e22; margin-top:2px;">-</span>
+                </div>
+            </div>
+            
+            <div class="summary-box" style="border: 1px dashed #f59e0b; background: rgba(245, 158, 11, 0.05);">
+                <div style="font-weight:700; font-size:11px; text-transform:uppercase; color:#f59e0b; margin-bottom:6px;">🛡️ SYSTEM SECURITY BACKUP</div>
+                <p style="font-size:11px; color:var(--text-sidebar-muted); margin-bottom:8px;">Gunakan tombol ini jika data browser ke-clear otomatis.</p>
+                <button class="btn-warning" onclick="downloadBackupJSON()" style="width:100%; padding:6px; font-size:11px;">💾 Download File Backup (.json)</button>
+                <button class="btn-warning" onclick="openFirebaseModal(true)" style="width:100%; padding:6px; font-size:11px; margin-top:6px;">🔗 Ganti / Cek Koneksi Database</button>
+                <input type="file" id="backupJsonPicker" accept=".json" style="display:none;" onchange="importBackupJSON(this)">
+                <button class="btn-primary" onclick="document.getElementById('backupJsonPicker').click()" style="width:100%; padding:6px; font-size:11px; margin-top:5px; background-color:#3b82f6;">🔄 Restore via File Backup</button>
+            </div>
+        </div>
+        <div class="sidebar-footer">
+            <button class="theme-toggle-btn" onclick="toggleTheme()" id="themeBtn">🌙 <span>Dark Mode</span></button>
+            <button class="theme-toggle-btn" onclick="logoutApp()" style="color:#f87171;">🚪 <span>Logout</span></button>
+        </div>
+    </nav>
+    <main class="main-content">
+        <div class="input-panel">
+            <h3>
+                <span>⚡ Form Input Aktivitas Operator (Scan / Input OpsID) <small style="font-size:11px; color:var(--text-muted); font-weight:normal;">(💡 Tips: Double-Click jam di tabel untuk mengedit langsung)</small></span>
+                <div>
+                    <input type="file" id="filePicker" accept=".txt,.csv,.xlsx,.xls" style="display: none;" onchange="handleFileImport(this)">
+                    <button class="btn-success" onclick="document.getElementById('filePicker').click()">📥 Import Excel (.xlsx) / CSV</button>
+                </div>
+            </h3>
+            <div class="form-row">
+                <div class="form-group">
+                    <label>OpsID :</label>
+                    <input type="text" id="inputOpsId" placeholder="Ketik/Scan OpsID..." required autocomplete="off" style="width: 150px;">
+                </div>
+                <div class="form-group">
+                    <label>Nama Operator :</label>
+                    <input type="text" id="inputNama" placeholder="Nama Lengkap" readonly style="width: 180px; font-weight:600;">
+                </div>
+                <div class="form-group">
+                    <label>Departement :</label>
+                    <select id="inputDept" style="width: 155px; font-weight:600;">
+                        <option value="SOC Operator">SOC Operator</option>
+                        <option value="EHA Operator">EHA Operator</option>
+                        <option value="Admin">Admin</option>
+                        <option value="SOC Non Operator">SOC Non Operator</option>
+                        <option value="Cache Operator">Cache Operator</option>
+                        <option value="MM Operator">MM Operator</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Aktivitas Log Otomatis :</label>
+                    <div id="predictedAction" class="next-action-badge" style="background: var(--table-header-bg); color: var(--text-main); min-width: 130px;">Scan OpsID...</div>
+                </div>
+                <div class="form-group" style="flex-direction: row; gap: 10px;">
+                    <button class="btn-primary" onclick="submitLog()">Submit (Enter)</button>
+                    <button class="btn-success" onclick="exportToExcel()">📊 Export Excel</button>
+                    <button class="btn-danger" onclick="clearAllData()">Reset Data</button>
+                </div>
+            </div>
+        </div>
+        <div class="main-layout">
+            <div class="grid-header">
+                <div class="title-section">
+                    <h1>PALANGKA RAYA DC</h1>
+                    <h2>Daily Monitoring Dedicated Operator & Daily Worker Rest Time</h2>
+                    <div id="connStatus" class="conn-status conn-connecting"><span class="conn-dot"></span><span id="connStatusText">Menghubungkan...</span></div>
+                    <div style="text-align: center; font-size:13px; font-weight:700;" id="clockDisplay">-</div>
+                    
+                    <div class="center-box-wrapper">
+                        <div class="center-box">
+                            <div class="box-title" style="color: #0f766e;">Total MP Masuk</div>
+                            <div class="actual-rest" style="background: #ccfbf1; color: #0f766e;">
+                                <div>(Check In)</div>
+                                <div id="mpTotalMasuk" class="counter-num">0</div>
+                            </div>
+                        </div>
+                        <div class="center-box">
+                            <div class="box-title" style="color: #c2410c;">Actual MP Rest</div>
+                            <div class="actual-rest" style="background: #ffedd5; color: #c2410c;">
+                                <div>(Istirahat)</div>
+                                <div id="actualRestCount" class="counter-num">0</div>
+                            </div>
+                        </div>
+                        <div class="center-box">
+                            <div class="box-title" style="color: #047857;">Done Rest</div>
+                            <div class="actual-rest" style="background: #d1fae5; color: #047857;">
+                                <div>(Selesai)</div>
+                                <div id="mpDoneRestCount" class="counter-num">0</div>
+                            </div>
+                        </div>
+                        <div class="center-box">
+                            <div class="box-title" style="color: #a16207;">Total MP Sisa</div>
+                            <div class="actual-rest" style="background: #fef9c3; color: #a16207;">
+                                <div>(Belum)</div>
+                                <div id="mpBelumRest" class="counter-num">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- BAGIAN FILTER DATA TABLE -->
+                <div class="filter-section">
+                    <div style="font-weight: 700; font-size: 12px; color: #e67e22; text-transform:uppercase;">🔍 Filter Data Table</div>
+                    
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                        <label>Shift:</label>
+                        <select id="filterShift" style="width: 140px; padding: 5px;" onchange="renderAll()">
+                            <option value="All">All Shift</option>
+                            <option value="1">Shift 1 (00:00 - 09:00)</option>
+                            <option value="2">Shift 2 (08:00 - 17:00)</option>
+                            <option value="3">Shift 3 (16:00 - 01:00)</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                        <label>Status:</label>
+                        <select id="filterBreakType" style="width: 140px; padding: 5px;" onchange="renderAll()">
+                            <option value="All">All Status</option>
+                            <option value="Break Out">Sedang Istirahat</option>
+                            <option value="Break In">Selesai Istirahat</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                        <label>Dept:</label>
+                        <select id="filterDept" style="width: 140px; padding: 5px;" onchange="renderAll()">
+                            <option value="All">All Dept</option>
+                            <option value="SOC Operator">SOC Operator</option>
+                            <option value="EHA Operator">EHA Operator</option>
+                            <option value="Admin">Admin</option>
+                            <option value="SOC Non Operator">SOC Non Operator</option>
+                            <option value="Cache Operator">Cache Operator</option>
+                            <option value="MM Operator">MM Operator</option>
+                        </select>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+                        <label>Cari:</label>
+                        <input type="text" id="searchGlobal" placeholder="Nama / OpsID..." style="width: 128px; padding: 5px;" oninput="renderAll()">
+                    </div>
+                </div>
+            </div>
+            <div class="table-container">
+                <table class="data-table" id="dataTableToExport">
+                    <thead>
+                        <tr>
+                            <th style="width: 8%;">Date</th>
+                            <th style="width: 7%;">OpsID</th>
+                            <th style="width: 15%;">Name</th>
+                            <th style="width: 14%;">Agency</th> 
+                            <th style="width: 13%;">Departement</th> 
+                            <th style="width: 7%;">Check In</th>
+                            <th style="width: 7%;">Break Out</th>
+                            <th style="width: 7%;">Break In</th>
+                            <th style="width: 7%;">Est. Masuk</th>
+                            <th style="width: 6%;">Duration</th>
+                            <th style="width: 13%;">Alert Status</th>
+                            <th style="width: 7%;">Work End</th>
+                            <th style="width: 6%;">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+</div>
+<script>
+    // ==== STATE (disinkronkan REALTIME dari Firebase, bukan localStorage lagi) ====
+    let masterKaryawan = {};   // { opsId: {name, dept, agency} } -- sinkron semua device
+    let logsArray = [];        // [{opsId, breakType, timestamp, workingDate, cycleNum, _key}] -- gabungan window + extra, dipakai sama semua fungsi lama (TIDAK BERUBAH pemakaiannya)
+    let debounceInputTimer = null;
+    let lastCheckedCalendarDate = "";
+    let lastSubmittedOpsId = null; // Menyimpan ID yang baru di-submit untuk highlight
+
+    let fbApp = null, fbDb = null;
+    const FB_ROOT = "prDcMonitoring"; // node root di Realtime Database
+
+    // ==== BANDWIDTH FIX (Agustus 2026) ====
+    // Dulu listener /logs narik SELURUH history dari awal Juli setiap kali ada 1 transaksi
+    // baru, di SEMUA device yang lagi buka tool ini -> boros kuota download Firebase Spark
+    // (10GB/bulan) sampe bisa habis cuma dalam 2 minggu. Fix-nya: listener realtime cuma
+    // narik data beberapa hari terakhir (cukup buat logic cycle 12-jam & lihat kemarin),
+    // data tanggal yang lebih lama di-load on-demand pas user pilih tanggal itu doang.
+    // logsArray (dipakai di semua fungsi lain) TETAP berisi gabungan semuanya, jadi TIDAK
+    // ADA fungsi lain yang perlu diubah.
+    const LOGS_WINDOW_DAYS = 3; // window realtime: hari ini + 2 hari ke belakang
+    let logsArrayWindowRaw = []; // hasil listener realtime (rolling window)
+    let logsArrayExtraRaw = [];  // hasil load manual buat tanggal lampau (di luar window)
+    let logsListenerRef = null;
+
+    function getLogsWindowStartDate() {
+        let d = new Date();
+        d.setDate(d.getDate() - LOGS_WINDOW_DAYS);
+        return getWorkingDateStr(d);
+    }
+
+    function rebuildLogsArray() {
+        logsArray = logsArrayWindowRaw.concat(logsArrayExtraRaw);
+        logsArray.sort(function (a, b) { return parseDateTime(a.timestamp) - parseDateTime(b.timestamp); });
+    }
+
+    // Dipanggil pas user ganti tanggal di filter. Kalau tanggalnya di luar rolling window
+    // (lebih lama dari LOGS_WINDOW_DAYS), load sekali doang (once, bukan listener realtime)
+    // biar data tanggal itu tetep bisa dilihat/diedit kayak biasa tanpa nambah beban listener.
+    function ensureLogsLoadedForDate(dateStr) {
+        if (!dateStr || dateStr >= getLogsWindowStartDate()) return; // udah otomatis ke-cover window realtime
+        if (logsArrayExtraRaw.some(function (l) { return l.workingDate === dateStr; })) return; // udah pernah di-load
+        fbDb.ref(FB_ROOT + "/logs").orderByChild("workingDate").equalTo(dateStr).once("value")
+            .then(function (snap) {
+                const val = snap.val() || {};
+                const fetched = Object.keys(val).map(function (k) { return Object.assign({}, val[k], { _key: k }); });
+                if (fetched.length) {
+                    logsArrayExtraRaw = logsArrayExtraRaw.concat(fetched);
+                    rebuildLogsArray();
+                    renderAll();
+                }
+            })
+            .catch(function (err) { console.error("Gagal load logs tanggal lampau:", err); });
+    }
+
+    // Config default udah ditanam di sini, jadi auto-connect begitu link dibuka
+    // (gak perlu paste manual lagi di tiap device). Kalau suatu saat mau pindah ke
+    // project Firebase lain, pake tombol "Ganti / Cek Koneksi Database" di sidebar.
+    const DEFAULT_FB_CONFIG = {
+        apiKey: "AIzaSyDEBFNhtORydBWVfLuvgJYhzzY9CDou0qw",
+        authDomain: "pr-dc-rest-monitoring.firebaseapp.com",
+        databaseURL: "https://pr-dc-rest-monitoring-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "pr-dc-rest-monitoring",
+        storageBucket: "pr-dc-rest-monitoring.firebasestorage.app",
+        messagingSenderId: "91497060421",
+        appId: "1:91497060421:web:cb84fb85a7b4a4c90fab2c"
+    };
+    const FB_CONFIG_KEY = "firebase_config_pr_dc"; // config disimpan per-device (bukan data transaksi)
+
+    function setConnStatus(state, text) {
+        const el = document.getElementById("connStatus");
+        const txt = document.getElementById("connStatusText");
+        if (!el) return;
+        el.className = "conn-status " + (state === "online" ? "conn-online" : state === "offline" ? "conn-offline" : "conn-connecting");
+        txt.innerText = text;
+    }
+
+    function openFirebaseModal(allowCancel) {
+        const modal = document.getElementById("firebaseSetupModal");
+        const cancelBtn = document.getElementById("firebaseModalCancelBtn");
+        const savedConfig = localStorage.getItem(FB_CONFIG_KEY);
+        const activeConfig = savedConfig ? JSON.parse(savedConfig) : DEFAULT_FB_CONFIG;
+        document.getElementById("firebaseConfigInput").value = JSON.stringify(activeConfig, null, 2);
+        document.getElementById("firebaseConfigError").innerText = "";
+        cancelBtn.style.display = allowCancel ? "inline-block" : "none";
+        modal.style.display = "flex";
+    }
+    function closeFirebaseModal() {
+        document.getElementById("firebaseSetupModal").style.display = "none";
+    }
+    function extractFirebaseConfigObject(raw) {
+        // Cari blok { ... } pertama yang seimbang kurungnya, biar user bisa paste
+        // kode mentah dari Firebase Console (termasuk "const firebaseConfig = {...}"
+        // dan baris initializeApp di bawahnya) tanpa perlu diedit manual dulu.
+        const start = raw.indexOf("{");
+        if (start === -1) throw new Error("no object found");
+        let depth = 0, end = -1;
+        for (let i = start; i < raw.length; i++) {
+            if (raw[i] === "{") depth++;
+            else if (raw[i] === "}") { depth--; if (depth === 0) { end = i; break; } }
+        }
+        if (end === -1) throw new Error("unbalanced braces");
+        const objText = raw.slice(start, end + 1);
+        // Objek dari console pakai syntax JS literal (key tanpa kutip), bukan JSON murni,
+        // jadi di-evaluate sebagai ekspresi JS, bukan JSON.parse.
+        const obj = Function('"use strict"; return (' + objText + ');')();
+        return obj;
+    }
+
+    function saveFirebaseConfig() {
+        const raw = document.getElementById("firebaseConfigInput").value.trim();
+        const errEl = document.getElementById("firebaseConfigError");
+        let parsed;
+        try {
+            parsed = extractFirebaseConfigObject(raw);
+            if (!parsed.databaseURL || !parsed.apiKey) throw new Error("kurang field");
+        } catch (e) {
+            errEl.innerText = "❌ Config gak valid / kurang field databaseURL & apiKey. Copy-paste persis dari Firebase Console (Project Settings > SDK setup and configuration).";
+            return;
+        }
+        localStorage.setItem(FB_CONFIG_KEY, JSON.stringify(parsed));
+        closeFirebaseModal();
+        connectToFirebase(parsed);
+    }
+
+    function connectToFirebase(config) {
+        try {
+            if (fbApp) { firebase.app().delete().then(() => startFirebaseApp(config)); return; }
+            startFirebaseApp(config);
+        } catch (e) {
+            setConnStatus("offline", "Gagal konek — cek config");
+            console.error(e);
+        }
+    }
+
+    function startFirebaseApp(config) {
+        setConnStatus("connecting", "Menghubungkan...");
+        // Reuse app yang udah diinit auth-guard.js (buat cek login) kalau ada, biar gak duplicate-init.
+        fbApp = firebase.apps.length ? firebase.app() : firebase.initializeApp(config);
+        fbDb = firebase.database();
+
+        // Indikator koneksi realtime ke server Firebase
+        fbDb.ref(".info/connected").on("value", function (snap) {
+            if (snap.val() === true) setConnStatus("online", "Online • Sinkron Realtime");
+            else setConnStatus("offline", "Offline / Menghubungkan ulang...");
+        });
+
+        // Sinkron data karyawan (master) - semua device lihat data yang sama
+        fbDb.ref(FB_ROOT + "/master").on("value", function (snap) {
+            masterKaryawan = snap.val() || {};
+            renderAll();
+        });
+
+        // Sinkron log transaksi - semua device lihat data yang sama, realtime.
+        // Cuma narik rolling window (lihat LOGS_WINDOW_DAYS di atas), BUKAN seluruh
+        // history -> logic cycle & tampilan tetep sama persis, cuma hemat bandwidth.
+        attachLogsListener();
+    }
+
+    function attachLogsListener() {
+        if (logsListenerRef) logsListenerRef.off();
+        logsListenerRef = fbDb.ref(FB_ROOT + "/logs").orderByChild("workingDate").startAt(getLogsWindowStartDate());
+        logsListenerRef.on("value", function (snap) {
+            const val = snap.val() || {};
+            logsArrayWindowRaw = Object.keys(val).map(function (k) { return Object.assign({}, val[k], { _key: k }); });
+            rebuildLogsArray();
+            renderAll();
+        });
+    }
+
+    function downloadBackupJSON() {
+        // Backup manual narik SELURUH history langsung dari Firebase (sekali fetch aja,
+        // bukan listener), biar hasil backup-nya tetep lengkap dari awal Juli walau
+        // listener realtime sehari-hari sekarang cuma sinkron rolling window.
+        if (!fbDb) { alert("❌ Belum konek ke database, bro."); return; }
+        fbDb.ref(FB_ROOT + "/logs").once("value").then(function (snap) {
+            const val = snap.val() || {};
+            const allLogs = Object.keys(val).map(function (k) { return Object.assign({}, val[k], { _key: k }); });
+            if (allLogs.length === 0) {
+                alert("❌ Gak ada data transaksi aktif yang bisa di-backup saat ini, bro.");
+                return;
+            }
+            let backupData = { logs: allLogs.map(function(l){ let c = Object.assign({}, l); delete c._key; return c; }), master: masterKaryawan };
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backupData));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `SECURITY_BACKUP_PR_DC_${document.getElementById("filterTanggal").value}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }).catch(function (err) {
+            alert("❌ Gagal ambil data buat backup: " + err.message);
+        });
+    }
+    function importBackupJSON(input) {
+        const file = input.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                const importedData = JSON.parse(e.target.result);
+                const logs = importedData.logs || (importedData.db && importedData.db.logs);
+                if (logs) {
+                    if (!confirm("⚠️ Ini bakal MENIMPA data di database online (semua device kelihatan). Lanjut restore?")) { input.value = ""; return; }
+                    const updates = {};
+                    logs.forEach(function (log) {
+                        const key = fbDb.ref(FB_ROOT + "/logs").push().key;
+                        updates[FB_ROOT + "/logs/" + key] = log;
+                    });
+                    if (importedData.master) {
+                        Object.keys(importedData.master).forEach(function (id) {
+                            updates[FB_ROOT + "/master/" + id] = importedData.master[id];
+                        });
+                    }
+                    fbDb.ref().update(updates).then(function () {
+                        alert("🛡️ RESTORE BERHASIL! Data sudah sinkron ke semua device.");
+                    });
+                } else {
+                    alert("❌ File JSON bukan format backup resmi!");
+                }
+            } catch (err) {
+                alert("❌ Gagal membaca file backup.");
+                console.error(err);
+            }
+            input.value = "";
+        };
+        reader.readAsText(file);
+    }
+    function toggleSidebar() {
+        const sidebar = document.getElementById("mainSidebar");
+        const backdrop = document.getElementById("sidebarBackdrop");
+        sidebar.classList.toggle("open");
+        backdrop.classList.toggle("open");
+    }
+    function toggleTheme() {
+        const html = document.documentElement;
+        const themeBtn = document.getElementById("themeBtn");
+        if (html.getAttribute("data-theme") === "light") {
+            html.setAttribute("data-theme", "dark");
+            themeBtn.innerHTML = "☀️ <span>Light Mode</span>";
+            localStorage.setItem("global_theme", "dark");
+        } else {
+            html.setAttribute("data-theme", "light");
+            themeBtn.innerHTML = "🌙 <span>Dark Mode</span>";
+            localStorage.setItem("global_theme", "light");
+        }
+    }
+    function playSound(type) {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            const osc = ctx.createOscillator(); const gain = ctx.createGain();
+            osc.connect(gain); gain.connect(ctx.destination);
+            if (type === 'success') {
+                osc.frequency.setValueAtTime(587.33, ctx.currentTime);
+                osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.1, ctx.currentTime);
+                osc.start(); osc.stop(ctx.currentTime + 0.25);
+            } else if (type === 'warning') {
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, ctx.currentTime);
+                gain.gain.setValueAtTime(0.2, ctx.currentTime);
+                osc.start(); osc.stop(ctx.currentTime + 0.4);
+            }
+        } catch (e) {}
+    }
+    function getWorkingDateStr(dateObj) {
+        return dateObj.getFullYear() + "-" + String(dateObj.getMonth() + 1).padStart(2, '0') + "-" + String(dateObj.getDate()).padStart(2, '0');
+    }
+    function handleFileImport(input) {
+        const file = input.files[0]; 
+        if (!file) return;
+        
+        const fileName = file.name.toLowerCase();
+        const reader = new FileReader();
+        if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    
+                    const rows = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: "" });
+                    if (rows.length === 0) return;
+                    let headers = rows[0].map(h => String(h).trim().toLowerCase());
+                    processImportedData(headers, rows.slice(1));
+                } catch (err) {
+                    alert("❌ Gagal memproses file Excel. Pastikan file tidak rusak!");
+                    console.error(err);
+                }
+                input.value = "";
+            };
+            reader.readAsArrayBuffer(file);
+        } else {
+            reader.onload = function(e) {
+                const rawData = e.target.result;
+                let lines = rawData.split("\n"); if(!lines.length) return;
+                let delimiter = lines[0].includes("\t") ? "\t" : (lines[0].includes(";") ? ";" : ",");
+                let headers = lines[0].split(delimiter).map(h => h.replace(/"/g, "").trim().toLowerCase());
+                
+                let dataRows = [];
+                for(let i = 1; i < lines.length; i++) {
+                    let line = lines[i].trim(); if(!line) continue;
+                    let cols = line.split(delimiter).map(c => c.replace(/"/g, "").trim());
+                    dataRows.push(cols);
+                }
+                processImportedData(headers, dataRows);
+                input.value = "";
+            };
+            reader.readAsText(file);
+        }
+    }
+    function processImportedData(headers, rows) {
+        let idxDate = headers.findIndex(h => h.includes("date") || h.includes("tanggal"));
+        let idxOpsId = headers.findIndex(h => h.includes("ops id") || h.includes("opsid"));
+        let idxName = headers.findIndex(h => h.includes("name") || h.includes("nama"));
+        let idxAgency = headers.findIndex(h => h.includes("agency") || h.includes("vendor"));
+        let idxDept = headers.findIndex(h => h.includes("departement") || h.includes("department"));
+        let idxCheckIn = headers.findIndex(h => h.includes("check in") || h.includes("masuk"));
+        let idxBreakOut = headers.findIndex(h => h.includes("break out") || h.includes("istirahat keluar"));
+        let idxBreakIn = headers.findIndex(h => h.includes("break in") || h.includes("istirahat masuk"));
+        let idxWorkEnd = headers.findIndex(h => h.includes("work end") || h.includes("pulang"));
+        
+        if(idxOpsId === -1 || idxName === -1) {
+            alert("❌ Format kolom file tidak dikenali! Harus ada minimal kolom 'Ops ID' dan 'Name/Nama'."); 
+            return;
+        }
+        
+        const updates = {};
+        for(let i = 0; i < rows.length; i++) {
+            let cols = rows[i];
+            let rawId = cols[idxOpsId] ? String(cols[idxOpsId]).trim() : "";
+            let name = cols[idxName] ? String(cols[idxName]).trim() : "";
+            let agency = idxAgency !== -1 && cols[idxAgency] ? String(cols[idxAgency]).trim() : "Dedicated Vendor";
+            let dept = idxDept !== -1 && cols[idxDept] ? String(cols[idxDept]).trim() : "SOC Operator";
+            let rowDate = idxDate !== -1 && cols[idxDate] ? String(cols[idxDate]).trim() : document.getElementById("filterTanggal").value;
+            
+            if (!rawId) continue;
+            let formattedId = rawId;
+            if (/^\d+$/.test(rawId)) {
+                formattedId = "Ops" + rawId;
+            } else if (rawId.toLowerCase().startsWith("ops")) {
+                formattedId = "Ops" + rawId.replace(/^[Oo][Pp][Ss]/, '');
+            }
+            
+            updates[FB_ROOT + "/master/" + formattedId] = { name: name, dept: dept, agency: agency };
+            
+            if (idxCheckIn !== -1 || idxBreakOut !== -1 || idxBreakIn !== -1) {
+                let cIn = cols[idxCheckIn] && cols[idxCheckIn] !== "-" ? String(cols[idxCheckIn]).trim() : "-";
+                let bOut = cols[idxBreakOut] && cols[idxBreakOut] !== "-" ? String(cols[idxBreakOut]).trim() : "-";
+                let bIn = cols[idxBreakIn] && cols[idxBreakIn] !== "-" ? String(cols[idxBreakIn]).trim() : "-";
+                let wEnd = idxWorkEnd !== -1 && cols[idxWorkEnd] && cols[idxWorkEnd] !== "-" ? String(cols[idxWorkEnd]).trim() : "-";
+
+                // Hapus log lama utk opsId+tanggal ini biar gak dobel (cari di data yg lagi sinkron)
+                logsArray.filter(l => l.opsId === formattedId && l.workingDate === rowDate)
+                    .forEach(l => { updates[FB_ROOT + "/logs/" + l._key] = null; });
+
+                let cycle = 1;
+                if (cIn && cIn !== "-") { let k = fbDb.ref(FB_ROOT + "/logs").push().key; updates[FB_ROOT + "/logs/" + k] = { opsId: formattedId, breakType: "Check In", timestamp: `${rowDate} ${cIn.substring(0,5)}:00`, workingDate: rowDate, cycleNum: cycle++ }; }
+                if (bOut && bOut !== "-") { let k = fbDb.ref(FB_ROOT + "/logs").push().key; updates[FB_ROOT + "/logs/" + k] = { opsId: formattedId, breakType: "Break Out", timestamp: `${rowDate} ${bOut.substring(0,5)}:00`, workingDate: rowDate, cycleNum: cycle++ }; }
+                if (bIn && bIn !== "-") { let k = fbDb.ref(FB_ROOT + "/logs").push().key; updates[FB_ROOT + "/logs/" + k] = { opsId: formattedId, breakType: "Break In", timestamp: `${rowDate} ${bIn.substring(0,5)}:00`, workingDate: rowDate, cycleNum: cycle++ }; }
+                if (wEnd && wEnd !== "-") { let k = fbDb.ref(FB_ROOT + "/logs").push().key; updates[FB_ROOT + "/logs/" + k] = { opsId: formattedId, breakType: "Selesai", timestamp: `${rowDate} ${wEnd.substring(0,5)}:00`, workingDate: rowDate, cycleNum: cycle++ }; }
+            }
+        }
+        fbDb.ref().update(updates).then(function () {
+            alert("📥 Impor Sukses! Data berhasil dimasukkan ke database online & sinkron ke semua device.");
+        }).catch(function (err) {
+            alert("❌ Gagal impor ke database online.");
+            console.error(err);
+        });
+    }
+    window.onload = function() {
+        const savedTheme = localStorage.getItem("global_theme");
+        if(savedTheme === "dark") {
+            document.documentElement.setAttribute("data-theme", "dark");
+            document.getElementById("themeBtn").innerHTML = "☀️ <span>Light Mode</span>";
+        }
+        
+        lastCheckedCalendarDate = getWorkingDateStr(new Date());
+        document.getElementById("filterTanggal").value = lastCheckedCalendarDate;
+        setInterval(updateClock, 1000); updateClock(); renderAll();
+        
+        document.getElementById("inputOpsId").addEventListener("keypress", function(e) { 
+            if (e.key === 'Enter') { e.preventDefault(); clearTimeout(debounceInputTimer); submitLog(); }
+        });
+        document.getElementById("inputOpsId").addEventListener("input", handleOpsIdInputAutomated);
+        document.getElementById("filterTanggal").addEventListener("change", function () {
+            ensureLogsLoadedForDate(document.getElementById("filterTanggal").value);
+            renderAll();
+        });
+        document.getElementById("inputOpsId").focus();
+
+        // Auto-connect: pake config custom kalau device ini pernah di-override manual,
+        // kalau enggak, langsung pake DEFAULT_FB_CONFIG yang udah ditanam di file ini.
+        const savedConfig = localStorage.getItem(FB_CONFIG_KEY);
+        if (savedConfig) {
+            try { connectToFirebase(JSON.parse(savedConfig)); }
+            catch (e) { connectToFirebase(DEFAULT_FB_CONFIG); }
+        } else {
+            connectToFirebase(DEFAULT_FB_CONFIG);
+        }
+    };
+    
+    function updateClock() {
+        const now = new Date();
+        const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+        document.getElementById("clockDisplay").innerText = now.toLocaleDateString('id-ID', options) + ' | ' + now.toTimeString().split(' ')[0];
+        
+        let currentCalendarDate = getWorkingDateStr(now);
+        if (currentCalendarDate !== lastCheckedCalendarDate && document.activeElement !== document.getElementById("filterTanggal")) {
+            lastCheckedCalendarDate = currentCalendarDate;
+            document.getElementById("filterTanggal").value = currentCalendarDate;
+            if (fbDb) attachLogsListener(); // geser rolling window ke hari yang baru
+            renderAll();
+        } else if (now.getSeconds() % 30 === 0) {
+            renderAll();
+        }
+    }
+    
+    function parseDateTime(str) {
+        if (!str) return null;
+        let t = str.split(/[- :]/);
+        return new Date(t[0], t[1]-1, t[2], t[3], t[4], t[5]);
+    }
+    
+    function calculateNextState(opsId, actualDateStr) {
+        let userLogs = logsArray.filter(log => log.opsId.toLowerCase() === opsId.toLowerCase());
+        userLogs.sort((a, b) => parseDateTime(a.timestamp) - parseDateTime(b.timestamp));
+        
+        if (userLogs.length === 0) return { cycleNum: 1, action: "Check In", logDate: actualDateStr };
+        
+        let lastLog = userLogs[userLogs.length - 1];
+        let hoursPassed = (new Date() - parseDateTime(lastLog.timestamp)) / (1000 * 60 * 60);
+        
+        if (hoursPassed > 12) {
+            return { cycleNum: 1, action: "Check In", logDate: actualDateStr };
+        }
+        
+        let nextCycleNum = lastLog.cycleNum + 1;
+        let modResult = (nextCycleNum - 1) % 4;
+        let nextAction = "Selesai";
+        
+        if (modResult === 0) nextAction = "Check In";
+        else if (modResult === 1) nextAction = "Break Out";
+        else if (modResult === 2) nextAction = "Break In";
+        
+        return { 
+            cycleNum: nextCycleNum, 
+            action: nextAction, 
+            logDate: lastLog.workingDate
+        };
+    }
+    function normalizeOpsId(rawId) {
+        let cleaned = rawId.trim();
+        if (!cleaned) return "";
+        
+        if (/^\d+$/.test(cleaned)) {
+            return "Ops" + cleaned;
+        }
+        if (cleaned.toLowerCase().startsWith("ops")) {
+            return "Ops" + cleaned.replace(/^[Oo][Pp][Ss]/, '');
+        }
+        return cleaned;
+    }
+    function handleOpsIdInputAutomated() {
+        let inputEl = document.getElementById("inputOpsId");
+        let rawInput = inputEl.value;
+        let formattedOpsId = normalizeOpsId(rawInput);
+        
+        if (!formattedOpsId) {
+            document.getElementById("predictedAction").innerText = "Scan OpsID...";
+            document.getElementById("predictedAction").style.background = "var(--table-header-bg)";
+            document.getElementById("predictedAction").style.color = "var(--text-main)";
+            return;
+        }
+        
+        const now = new Date();
+        const actualDateStr = getWorkingDateStr(now);
+        
+        let exactKey = Object.keys(masterKaryawan).find(k => k.toLowerCase() === formattedOpsId.toLowerCase());
+        let state = calculateNextState(exactKey || formattedOpsId, actualDateStr);
+        let badge = document.getElementById("predictedAction");
+        badge.innerText = state.action;
+        if(state.action === "Check In") { badge.style.background = "#ccfbf1"; badge.style.color="#0f766e"; }
+        else if(state.action === "Break Out") { badge.style.background = "#ffedd5"; badge.style.color="#c2410c"; }
+        else if(state.action === "Break In") { badge.style.background = "#d1fae5"; badge.style.color="#047857"; }
+        
+        clearTimeout(debounceInputTimer);
+        
+        if (rawInput.trim().length >= 5) { 
+            debounceInputTimer = setTimeout(function() { 
+                submitLog(); 
+            }, 400); 
+        }
+    }
+    function submitLog() {
+        let inputEl = document.getElementById("inputOpsId");
+        let rawInput = inputEl.value;
+        let opsId = normalizeOpsId(rawInput);
+        
+        const now = new Date();
+        const actualDateStr = getWorkingDateStr(now);
+        
+        if (!opsId) return;
+        inputEl.value = opsId; 
+        
+        let exactKey = Object.keys(masterKaryawan).find(k => k.toLowerCase() === opsId.toLowerCase());
+        let foundUser = exactKey ? masterKaryawan[exactKey] : null;
+        let name = document.getElementById("inputNama").value.trim();
+        let dept = document.getElementById("inputDept").value;
+        
+        if (foundUser) {
+            name = foundUser.name; dept = foundUser.dept || "SOC Operator";
+            document.getElementById("inputNama").value = name;
+            document.getElementById("inputDept").value = dept;
+        } else {
+            if (!name || name === "Belum Terdaftar") {
+                document.getElementById("inputNama").removeAttribute("readonly");
+                document.getElementById("inputNama").value = "";
+                document.getElementById("inputNama").placeholder = "Ketik Nama Baru...";
+                document.getElementById("inputNama").focus();
+                alert("⚠️ ID Baru terdeteksi! Masukkan Nama lalu Submit kembali.");
+                return;
+            }
+        }
+        
+        let cleanOpsId = exactKey || opsId;
+        let finalAgency = exactKey ? (masterKaryawan[exactKey].agency || "Dedicated Vendor") : "Dedicated Vendor";
+        
+        let state = calculateNextState(cleanOpsId, actualDateStr);
+        let targetDateToSave = state.logDate;
+        let existingLogs = logsArray.filter(log => log.opsId === cleanOpsId && log.workingDate === targetDateToSave);
+        
+        if (existingLogs.length > 0 && existingLogs[existingLogs.length - 1].breakType === state.action) {
+            if(Math.round((new Date() - parseDateTime(existingLogs[existingLogs.length - 1].timestamp)) / 1000) < 15) {
+                alert("⚠️ Data ganda! ID ini baru saja di-scan.");
+                inputEl.value = ""; document.getElementById("inputNama").value = ""; return;
+            }
+        }
+        
+        if (state.action === "Break In") {
+            let boLog = existingLogs.find(l => l.breakType === "Break Out");
+            if (boLog && Math.round((new Date() - parseDateTime(boLog.timestamp)) / 60000) < 50) {
+                playSound('warning'); alert("⚠️ Perhatian: Belum ada 50 Menit waktu istirahat!");
+            }
+        }
+        const timestampStr = now.getFullYear() + "-" + String(now.getMonth()+1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0') + " " + String(now.getHours()).padStart(2, '0') + ":" + String(now.getMinutes()).padStart(2, '0') + ":" + String(now.getSeconds()).padStart(2, '0');
+
+        if (!fbDb) { alert("⚠️ Belum terhubung ke database online. Setel koneksi Firebase dulu."); openFirebaseModal(false); return; }
+
+        // SImpan OpsID yang baru saja di-submit (buat highlight setelah listener realtime nyala)
+        lastSubmittedOpsId = cleanOpsId;
+
+        const updates = {};
+        updates[FB_ROOT + "/master/" + cleanOpsId] = { name: name, dept: dept, agency: finalAgency };
+        const newKey = fbDb.ref(FB_ROOT + "/logs").push().key;
+        updates[FB_ROOT + "/logs/" + newKey] = { opsId: cleanOpsId, breakType: state.action, timestamp: timestampStr, workingDate: targetDateToSave, cycleNum: state.cycleNum };
+
+        fbDb.ref().update(updates).then(function () {
+            playSound('success');
+        }).catch(function (err) {
+            alert("❌ Gagal kirim data ke database online. Cek koneksi internet lu, bro.");
+            console.error(err);
+        });
+
+        inputEl.value = ""; document.getElementById("inputNama").value = "";
+        document.getElementById("inputNama").setAttribute("readonly", true);
+        document.getElementById("predictedAction").innerText = "Scan OpsID...";
+        document.getElementById("predictedAction").style.background = "var(--table-header-bg)";
+        
+        document.getElementById("filterTanggal").value = targetDateToSave;
+        inputEl.focus();
+    }
+    
+    function makeTimeEditable(element, opsId, type) {
+        let currentText = element.innerText.trim();
+        if (currentText === "-") currentText = "00:00";
+        let input = document.createElement("input");
+        input.type = "time";
+        input.className = "inline-time-input";
+        input.value = currentText;
+        element.innerHTML = "";
+        element.appendChild(input);
+        input.focus();
+        let saveChange = function() {
+            let newTime = input.value;
+            if (newTime) {
+                const targetDateStr = document.getElementById("filterTanggal").value;
+                let userLogs = logsArray.filter(log => log.opsId === opsId && log.workingDate === targetDateStr);
+                let targetedLog = userLogs.find(l => l.breakType === type);
+                if (targetedLog) {
+                    fbDb.ref(FB_ROOT + "/logs/" + targetedLog._key).update({ timestamp: `${targetDateStr} ${newTime}:00` });
+                } else {
+                    let nextCycle = userLogs.length + 1;
+                    let newKey = fbDb.ref(FB_ROOT + "/logs").push().key;
+                    fbDb.ref(FB_ROOT + "/logs/" + newKey).set({
+                        opsId: opsId,
+                        breakType: type,
+                        timestamp: `${targetDateStr} ${newTime}:00`,
+                        workingDate: targetDateStr,
+                        cycleNum: nextCycle
+                    });
+                }
+            } else {
+                renderAll();
+            }
+        };
+        input.addEventListener("blur", saveChange);
+        input.addEventListener("keypress", function(e) {
+            if (e.key === 'Enter') { saveChange(); }
+        });
+    }
+    function removeOpsIdLog(opsId) {
+        if (!fbDb) { alert("⚠️ Belum terhubung ke database online, gak bisa hapus."); return; }
+        if (confirm(`Hapus aktivitas ${opsId}? Ini bakal ke-hapus juga di semua device.`)) {
+            const targetDateStr = document.getElementById("filterTanggal").value;
+            const matched = logsArray.filter(log => log.opsId === opsId && log.workingDate === targetDateStr);
+            if (matched.length === 0) { alert("⚠️ Gak ketemu log aktif buat opsId & tanggal ini (mungkin sudah kehapus)."); return; }
+            const updates = {};
+            matched.forEach(log => { updates[FB_ROOT + "/logs/" + log._key] = null; });
+            // .catch WAJIB ada: kalau security rules Firebase nolak (belum login / gak punya akses tulis),
+            // update() bakal reject diam-diam dan kelihatannya kayak "gak ke-hapus di Firebase" padahal
+            // sebenernya request-nya ditolak server, bukan bug sinkronisasi.
+            fbDb.ref().update(updates)
+                .then(() => console.log(`✅ ${matched.length} log ${opsId} berhasil dihapus dari Firebase.`))
+                .catch(err => alert("❌ Gagal hapus dari database online: " + err.message + "\n\nKemungkinan security rules Firebase nolak akses tulis, atau koneksi terputus."));
+        }
+    }
+    function clearAllData() {
+        if (!fbDb) { alert("⚠️ Belum terhubung ke database online, gak bisa reset data."); return; }
+        const targetDateStr = document.getElementById("filterTanggal").value;
+        if (confirm(`⚠️ Ini bakal HAPUS semua transaksi tanggal ${targetDateStr} di database ONLINE (kelihatan di semua device). Data karyawan terdaftar TIDAK ikut kehapus. Lanjut?`)) {
+            const matched = logsArray.filter(log => log.workingDate === targetDateStr);
+            if (matched.length === 0) { alert("⚠️ Gak ada transaksi di tanggal ini yang perlu dihapus."); return; }
+            const updates = {};
+            matched.forEach(log => { updates[FB_ROOT + "/logs/" + log._key] = null; });
+            fbDb.ref().update(updates)
+                .then(() => alert(`✅ ${matched.length} transaksi tanggal ${targetDateStr} berhasil dihapus dari database online.`))
+                .catch(err => alert("❌ Gagal reset data online: " + err.message + "\n\nKemungkinan security rules Firebase nolak akses tulis, atau koneksi terputus."));
+        }
+    }
+    function formatTime(dateObj) { 
+        return (dateObj && !isNaN(dateObj.getTime())) ? String(dateObj.getHours()).padStart(2, '0') + ":" + String(dateObj.getMinutes()).padStart(2, '0') : ""; 
+    }
+    
+    function exportToExcel() {
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        document.querySelectorAll("#dataTableToExport tr").forEach(row => {
+            let rowData = []; const cols = row.querySelectorAll("th, td");
+            for (let i = 0; i < cols.length - 1; i++) rowData.push('"' + cols[i].innerText.replace(/,/g, ";").trim() + '"');
+            csvContent += rowData.join(",") + "\r\n";
+        });
+        const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent));
+        link.setAttribute("download", `Rest_Monitoring_${document.getElementById("filterTanggal").value}.csv`);
+        document.body.appendChild(link); link.click(); document.body.removeChild(link);
+    }
+    function renderAll() {
+        const targetDateStr = document.getElementById("filterTanggal").value; 
+        const filterShift = document.getElementById("filterShift").value; 
+        const filterBreak = document.getElementById("filterBreakType").value;
+        const filterDept = document.getElementById("filterDept").value;
+        const searchQuery = document.getElementById("searchGlobal").value.toLowerCase().trim();
+        const tbody = document.getElementById("tableBody"); 
+        tbody.innerHTML = "";
+        
+        let checkedInUsers = [];
+        logsArray.forEach(log => { 
+            if (log.workingDate === targetDateStr && !checkedInUsers.includes(log.opsId)) {
+                checkedInUsers.push(log.opsId); 
+            }
+        });
+        
+        let countSOC = 0, countEHA = 0, countAdmin = 0, countNonSOC = 0, countCache = 0;
+        let filteredTotalMasuk = 0;
+        let actualRestCount = 0; 
+        let mpDoneRestCount = 0; 
+        let countBelumRest = 0;
+        
+        let totalDisiplin = 0; 
+        let totalGancangMeakal = 0; 
+        let totalUdahRestAtauSedangRest = 0;
+        let deptViolatorMap = {}; 
+        
+        let targetRowElement = null; // Menyimpan baris elemen yang di-highlight untuk auto scroll
+
+        checkedInUsers.forEach(opsId => {
+            let userRaw = masterKaryawan[opsId] || {};
+            let name = userRaw.name || "Unknown"; 
+            let agency = userRaw.agency || "Dedicated Vendor"; 
+            let dept = userRaw.dept || "SOC Operator";
+            
+            let userLogs = logsArray.filter(log => log.opsId === opsId && log.workingDate === targetDateStr);
+            let checkInLog = userLogs.filter(l => l.breakType === "Check In");
+            let checkInTime = checkInLog.length > 0 ? parseDateTime(checkInLog[checkInLog.length - 1].timestamp) : null;
+            let breakOutTime = userLogs.find(l => l.breakType === "Break Out") ? parseDateTime(userLogs.find(l => l.breakType === "Break Out").timestamp) : null;
+            let breakInTime = userLogs.find(l => l.breakType === "Break In") ? parseDateTime(userLogs.find(l => l.breakType === "Break In").timestamp) : null;
+            
+            let matchShift = false;
+            if (filterShift === "All") {
+                matchShift = true;
+            } else if (checkInTime) {
+                let checkInHour = checkInTime.getHours();
+                if (filterShift === "1" && checkInHour >= 0 && checkInHour <= 7) {
+                    matchShift = true;
+                } else if (filterShift === "2" && checkInHour >= 8 && checkInHour <= 15) {
+                    matchShift = true;
+                } else if (filterShift === "3" && checkInHour >= 16 && checkInHour <= 23) {
+                    matchShift = true;
+                }
+            }
+            let currentStatus = "Belum Istirahat";
+            if (breakOutTime && !breakInTime) currentStatus = "Break Out";
+            if (breakOutTime && breakInTime) currentStatus = "Break In";
+            
+            let matchDept = false;
+            if (filterDept === "All") { 
+                matchDept = true; 
+            } else if (filterDept === "Cache Operator") { 
+                matchDept = dept.toLowerCase().includes("cache") || dept.toLowerCase().includes("mm operator"); 
+            } else { 
+                matchDept = dept.toLowerCase() === filterDept.toLowerCase(); 
+            }
+            
+            if (!matchShift) return;
+            if (filterBreak !== "All" && filterBreak !== currentStatus) return;
+            if (!matchDept) return;
+            if (searchQuery && !opsId.toLowerCase().includes(searchQuery) && !name.toLowerCase().includes(searchQuery)) return;
+            
+            if (dept.toLowerCase().includes("soc operator")) countSOC++;
+            else if (dept.toLowerCase().includes("eha operator")) countEHA++;
+            else if (dept.toLowerCase().includes("admin")) countAdmin++;
+            else if (dept.toLowerCase().includes("non operator")) countNonSOC++;
+            else if (dept.toLowerCase().includes("cache") || dept.toLowerCase().includes("mm operator")) countCache++;
+            filteredTotalMasuk++;
+            if (!breakOutTime) countBelumRest++;
+            if (breakOutTime && !breakInTime) actualRestCount++;
+            if (breakOutTime && breakInTime) mpDoneRestCount++;
+            
+            let estMasuk = ""; 
+            let durationStr = "";
+            let alertBadge = '<span class="badge" style="background:var(--table-header-bg); color:var(--text-main);">Belum Istirahat</span>';
+            let rowClass = "";
+            
+            if (breakOutTime) {
+                totalUdahRestAtauSedangRest++;
+                let estDate = new Date(breakOutTime.getTime() + (60 * 60000));
+                estMasuk = formatTime(estDate);
+                if (!breakInTime) {
+                    let diffMinutes = Math.floor((new Date() - breakOutTime) / 60000);
+                    durationStr = diffMinutes + " Min";
+                    if (diffMinutes > 60) {
+                        alertBadge = '<span class="badge alert-gancang">Gancang Meakal</span>'; 
+                        rowClass = "row-gancang";
+                        totalGancangMeakal++; 
+                        deptViolatorMap[dept] = (deptViolatorMap[dept] || 0) + 1;
+                    } else if (diffMinutes >= 50) {
+                        alertBadge = '<span class="badge alert-reminder">Reminder (>=50m)</span>'; 
+                        rowClass = "row-reminder";
+                    } else {
+                        alertBadge = '<span class="badge alert-istirahat">Istirahat</span>';
+                    }
+                } else {
+                    let diffMinutes = Math.floor((breakInTime - breakOutTime) / 60000);
+                    durationStr = diffMinutes + " Min";
+                    if (diffMinutes > 60) {
+                        alertBadge = '<span class="badge alert-gancang">Gancang Meakal</span>';
+                        totalGancangMeakal++; 
+                        deptViolatorMap[dept] = (deptViolatorMap[dept] || 0) + 1;
+                    } else {
+                        alertBadge = '<span class="badge alert-disiplin">Disiplin</span>'; 
+                        totalDisiplin++;
+                    }
+                }
+            }
+            let workEndTime = userLogs.find(l => l.breakType === "Selesai") ? formatTime(parseDateTime(userLogs.find(l => l.breakType === "Selesai").timestamp)) : "";
+            
+            let tr = document.createElement("tr");
+            
+            // CEK OPSID UNTUK HIGHLIGHT BERKEDIP
+            let isNewlySubmitted = (lastSubmittedOpsId && opsId.toLowerCase() === lastSubmittedOpsId.toLowerCase());
+            
+            if (rowClass) {
+                tr.className = rowClass + (isNewlySubmitted ? " row-highlight" : "");
+            } else if (isNewlySubmitted) {
+                tr.className = "row-highlight";
+            }
+            
+            tr.innerHTML = `
+                <td>${targetDateStr}</td>
+                <td><span class="badge badge-dept">${opsId}</span></td>
+                <td style="text-align:left; font-weight:600;">${name}</td>
+                <td><span class="badge badge-dept" style="font-weight: 500;">${agency}</span></td>
+                <td><span class="badge badge-dept">${dept}</span></td>
+                <td><span class="badge badge-time" ondblclick="makeTimeEditable(this, '${opsId}', 'Check In')">${checkInTime ? formatTime(checkInTime) : "-"}</span></td>
+                <td><span class="badge badge-time" ondblclick="makeTimeEditable(this, '${opsId}', 'Break Out')">${breakOutTime ? formatTime(breakOutTime) : "-"}</span></td>
+                <td><span class="badge badge-time" ondblclick="makeTimeEditable(this, '${opsId}', 'Break In')">${breakInTime ? formatTime(breakInTime) : "-"}</span></td>
+                <td><span class="badge badge-time" style="color:#c2410c; cursor:default; background:var(--table-header-bg);">${estMasuk || "-"}</span></td>
+                <td style="font-weight:700;">${durationStr || "-"}</td>
+                <td>${alertBadge}</td>
+                <td><span class="badge badge-time" ondblclick="makeTimeEditable(this, '${opsId}', 'Selesai')">${workEndTime || "-"}</span></td>
+                <td><button class="btn-action-del" onclick="removeOpsIdLog('${opsId}')">Hapus</button></td>
+            `;
+            tbody.appendChild(tr);
+
+            if (isNewlySubmitted) {
+                targetRowElement = tr;
+            }
+        });
+        
+        // Auto Scroll ke Baris yang Baru di-Submit
+        if (targetRowElement) {
+            targetRowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Reset setelah di-highlight agar animasi tidak berulang terus saat timer clock update
+            setTimeout(() => {
+                lastSubmittedOpsId = null;
+            }, 3000);
+        }
+        
+        document.getElementById("mpSOC").innerText = countSOC;
+        document.getElementById("mpEHA").innerText = countEHA;
+        document.getElementById("mpAdmin").innerText = countAdmin;
+        document.getElementById("mpNonSOC").innerText = countNonSOC;
+        document.getElementById("mpCache").innerText = countCache;
+        
+        document.getElementById("mpTotalMasuk").innerText = filteredTotalMasuk;
+        document.getElementById("actualRestCount").innerText = actualRestCount;
+        document.getElementById("mpDoneRestCount").innerText = mpDoneRestCount;
+        document.getElementById("mpBelumRest").innerText = countBelumRest;
+        
+        let pctDisiplinVal = totalUdahRestAtauSedangRest > 0 ? Math.round((totalDisiplin / totalUdahRestAtauSedangRest) * 100) : 0;
+        let pctGancangVal = totalUdahRestAtauSedangRest > 0 ? Math.round((totalGancangMeakal / totalUdahRestAtauSedangRest) * 100) : 0;
+        document.getElementById("pctDisiplin").innerText = pctDisiplinVal + "%";
+        document.getElementById("pctGancang").innerText = pctGancangVal + "%";
+        
+        let maxViolations = 0; 
+        let highestDept = "-";
+        for (let deptName in deptViolatorMap) {
+            if (deptViolatorMap[deptName] > maxViolations) { 
+                maxViolations = deptViolatorMap[deptName]; 
+                highestDept = deptName; 
+            }
+        }
+        document.getElementById("highestViolatorDept").innerText = highestDept + (maxViolations > 0 ? ` (${maxViolations} Kasus)` : "");
+    }
+</script>
+<script>
+// ==== APP-SHELL BRIDGE ====
+// Kalau halaman ini dibuka langsung (bukan lewat index.html app-shell), link sidebar
+// tetap jalan normal (pindah halaman biasa). Tapi kalau dibuka di dalam iframe shell,
+// klik link ke outbound.html di-intercept dan diteruskan ke shell lewat postMessage,
+// biar shell yang toggle tab tanpa reload sama sekali.
+(function () {
+  if (window.self === window.top) return; // diakses langsung, biarin behavior default
+
+  function hijack(id, tab, submenu) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.addEventListener("click", function (e) {
+      e.preventDefault();
+      window.top.postMessage({ source: "pkydc", type: "switchTab", tab: tab, submenu: submenu || null }, "*");
+    });
+  }
+
+  hijack("navToOutboundAging", "outbound", "aging");
+  hijack("navToOutboundOccupancy", "outbound", "occupancy");
+  hijack("navToPerformanceBagger", "performance-bagger");
+})();
+</script>
+</body>
+</html>

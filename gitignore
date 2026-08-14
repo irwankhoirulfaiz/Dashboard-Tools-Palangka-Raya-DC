@@ -1,0 +1,28 @@
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node (jaga-jaga kalau nanti nambah tooling)
+node_modules/
+package-lock.json
+
+# Env / secrets lokal (kalau ada eksperimen taruh config di sini nanti)
+.env
+.env.local
+*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Backup / temp files
+*.bak
+*.tmp

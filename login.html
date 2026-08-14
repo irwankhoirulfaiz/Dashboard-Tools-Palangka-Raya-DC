@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Login - Internal Palangka Raya DC</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', sans-serif;
+    background: #0b1329;
+    color: #f1f5f9;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+  .card {
+    background: #060a17;
+    border: 1px solid #1e293b;
+    border-radius: 14px;
+    padding: 32px;
+    width: 100%;
+    max-width: 380px;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+  }
+  .card h1 { font-size: 18px; font-weight: 700; text-align: center; margin-bottom: 4px; }
+  .card p.subtitle { font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 24px; }
+  label { font-size: 12px; font-weight: 600; color: #cbd5e1; display: block; margin-bottom: 6px; }
+  input, textarea {
+    width: 100%; padding: 10px 12px; font-family: 'Inter', sans-serif; font-size: 13px;
+    background: #0f172a; border: 1px solid #334155; border-radius: 8px; color: #f1f5f9;
+    margin-bottom: 14px;
+  }
+  input:focus, textarea:focus { outline: none; border-color: #e67e22; }
+  textarea { font-family: 'JetBrains Mono', monospace; font-size: 11px; min-height: 120px; resize: vertical; }
+  button {
+    width: 100%; padding: 11px; border: none; border-radius: 8px; font-weight: 700; font-size: 13px;
+    cursor: pointer; background: #e67e22; color: #fff; transition: background 0.2s;
+  }
+  button:hover { background: #d35400; }
+  .error-msg { color: #f87171; font-size: 12px; margin-bottom: 12px; min-height: 16px; }
+  .hint { font-size: 11px; color: #64748b; margin-top: 16px; line-height: 1.6; text-align: center; }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <h1>🔒 Internal Palangka Raya DC</h1>
+  <p class="subtitle" id="cardSubtitle">Login untuk melanjutkan</p>
+
+  <!-- STEP LOGIN -->
+  <div id="loginStep">
+    <label>Email</label>
+    <input type="email" id="loginEmail" placeholder="nama@email.com" autocomplete="username">
+    <label>Password</label>
+    <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+    <div class="error-msg" id="loginError"></div>
+    <button onclick="doLogin()">Masuk</button>
+    <p class="hint">Belum punya akun? Minta admin nambahin email lu di<br>
+    Firebase Console → Authentication → Users.</p>
+  </div>
+</div>
+
+<script>
+  const FB_CONFIG_KEY = "firebase_config_pr_dc";
+  const params = new URLSearchParams(window.location.search);
+  const redirectTarget = params.get("redirect") || "rest-time.html";
+
+  // Config default udah ditanam di sini (sama kayak di rest-time.html), jadi auto-connect
+  // begitu link dibuka, gak perlu paste manual lagi di tiap device.
+  const DEFAULT_FB_CONFIG = {
+    apiKey: "AIzaSyDEBFNhtORydBWVfLuvgJYhzzY9CDou0qw",
+    authDomain: "pr-dc-rest-monitoring.firebaseapp.com",
+    databaseURL: "https://pr-dc-rest-monitoring-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: "pr-dc-rest-monitoring",
+    storageBucket: "pr-dc-rest-monitoring.firebasestorage.app",
+    messagingSenderId: "91497060421",
+    appId: "1:91497060421:web:cb84fb85a7b4a4c90fab2c"
+  };
+
+  function initFirebaseAndShowLogin(config) {
+    try {
+      if (!firebase.apps.length) firebase.initializeApp(config);
+    } catch (e) {
+      // Config tertanam sudah pasti valid; kalau error di sini berarti ada masalah lain
+      // (mis. project di-nonaktifkan), bukan sesuatu yang bisa diperbaiki dari sisi user.
+      document.getElementById("loginError").innerText = "❌ Gagal konek ke database: " + e.message;
+      return;
+    }
+    document.getElementById("cardSubtitle").innerText = "Login untuk melanjutkan";
+
+    // SESSION persistence: sesi login cuma nempel di tab ini aja, begitu tab/window
+    // ditutup, sesi ilang otomatis (gak kayak default LOCAL yang tetep login walau ditutup).
+    firebase.auth().setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(function (e) {
+      console.error("Gagal set persistence:", e);
+    });
+
+    // Kalau ternyata udah login (session masih aktif), langsung redirect
+    firebase.auth().onAuthStateChanged(function (user) {
+      if (user) window.location.href = redirectTarget;
+    });
+  }
+
+  // SECURITY FIX: dulu ada opsi "Ganti config Firebase" yang bisa dipencet SIAPAPUN
+  // (bahkan sebelum login) buat ngarahin seluruh app ke project Firebase lain — bisa
+  // dipakai buat phishing kredensial (form login keliatan sama persis, tapi ngirim
+  // email/password ke Firebase project punya orang lain). Sekarang config SELALU pakai
+  // DEFAULT_FB_CONFIG yang ditanam di kode ini, gak bisa diubah dari tampilan sama
+  // sekali. Kalau memang perlu pindah project Firebase, ubah DEFAULT_FB_CONFIG di kode
+  // ini terus redeploy.
+  if (localStorage.getItem(FB_CONFIG_KEY)) localStorage.removeItem(FB_CONFIG_KEY); // bersihin sisa config lama
+  initFirebaseAndShowLogin(DEFAULT_FB_CONFIG);
+
+  // Login pake Enter key
+  document.getElementById("loginPassword").addEventListener("keydown", function (e) {
+    if (e.key === "Enter") doLogin();
+  });
+
+  function doLogin() {
+    const email = document.getElementById("loginEmail").value.trim();
+    const password = document.getElementById("loginPassword").value;
+    const errEl = document.getElementById("loginError");
+    errEl.innerText = "";
+    if (!email || !password) {
+      errEl.innerText = "Isi email & password dulu bro.";
+      return;
+    }
+    firebase.auth().signInWithEmailAndPassword(email, password)
+      .then(function () {
+        window.location.href = redirectTarget;
+      })
+      .catch(function (err) {
+        if (err.code === "auth/invalid-credential" || err.code === "auth/wrong-password" || err.code === "auth/user-not-found") {
+          errEl.innerText = "❌ Email atau password salah.";
+        } else if (err.code === "auth/too-many-requests") {
+          errEl.innerText = "❌ Kebanyakan percobaan gagal, coba lagi beberapa menit lagi.";
+        } else {
+          errEl.innerText = "❌ Gagal login: " + err.message;
+        }
+      });
+  }
+</script>
+</body>
+</html>
